@@ -36,6 +36,15 @@ def cyan(text: str) -> str:
     return f"{Fore.CYAN}{text}{Fore.RESET}"
 
 
+def check_memory_usage(stage=""):
+    """检查CUDA内存使用情况"""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        max_allocated = torch.cuda.max_memory_allocated() / 1024**3
+        print(f"[{stage}] CUDA Memory - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB, Max Allocated: {max_allocated:.2f}GB")
+
+
 @hydra.main(
     version_base=None,
     config_path="../config",
@@ -133,6 +142,23 @@ def train(cfg_dict: DictConfig):
     }
     model_wrapper = ModelWrapper(**model_kwargs)
 
+    # 打印模型参数数量
+    total_params = sum(p.numel() for p in model_wrapper.parameters())
+    trainable_params = sum(p.numel() for p in model_wrapper.parameters() if p.requires_grad)
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
+
+    # 启用梯度检查点以节省内存（如果模型支持）
+    try:
+        if hasattr(model_wrapper.encoder, 'enable_gradient_checkpointing'):
+            model_wrapper.encoder.enable_gradient_checkpointing()
+            print("Enabled gradient checkpointing for encoder")
+        if hasattr(model_wrapper.decoder, 'enable_gradient_checkpointing'):
+            model_wrapper.decoder.enable_gradient_checkpointing()
+            print("Enabled gradient checkpointing for decoder")
+    except Exception as e:
+        print(f"Could not enable gradient checkpointing: {e}")
+
     data_module = DataModule(
         cfg.dataset,
         cfg.data_loader,
@@ -150,7 +176,7 @@ def train(cfg_dict: DictConfig):
 
             model_wrapper.encoder.depth_predictor.load_state_dict(pretrained_model, strict=strict_load)
             print(cyan(f"Loaded pretrained monodepth: {cfg.checkpointing.pretrained_monodepth}"))
-            
+
         if cfg.checkpointing.pretrained_model is not None:
             pretrained_model = torch.load(cfg.checkpointing.pretrained_model, map_location='cpu')
             if 'state_dict' in pretrained_model:
@@ -158,11 +184,17 @@ def train(cfg_dict: DictConfig):
 
             model_wrapper.load_state_dict(pretrained_model, strict=strict_load)
             print(cyan(f"Loaded pretrained weights: {cfg.checkpointing.pretrained_model}"))
-            
+
+        # 检查训练前内存使用
+        check_memory_usage("Before trainer.fit")
+
         trainer.fit(model_wrapper, datamodule=data_module, ckpt_path=(
             checkpoint_path if cfg.checkpointing.resume else None))
-    
+
     else:
+        # 检查测试前内存使用
+        check_memory_usage("Before trainer.test")
+
         trainer.test(
             model_wrapper,
             datamodule=data_module,
@@ -173,5 +205,12 @@ def train(cfg_dict: DictConfig):
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
     torch.set_float32_matmul_precision('high')
+
+    # 设置环境变量以获得更详细的错误信息
+    os.environ['HYDRA_FULL_ERROR'] = '1'
+
+    wandb_api_key = os.environ.get("WANDB_API_KEY")
+    if wandb_api_key:
+        wandb.login(key=wandb_api_key)
 
     train()

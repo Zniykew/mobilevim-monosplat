@@ -42,42 +42,35 @@ def warp_with_pose_depth_candidates(
     # print(f"[warp_with_pose_depth_candidates] depth shape: {depth.shape}")
 
     with torch.no_grad():
-        # pixel coordinates - 对coords_grid的结果进行clone
         grid = coords_grid(
             b, h, w, homogeneous=True, device=depth.device
-        ).clone()  # [B, 3, H, W] - 添加.clone()
+        )  # [B, 3, H, W] - 添加.clone()
 
         # back project to 3D and transform viewpoint
-        # 确保所有操作都不是inplace操作
-        points = torch.inverse(intrinsics).bmm(grid.view(b, 3, -1)).clone()  # [B, 3, H*W]
+        points = torch.inverse(intrinsics).bmm(grid.view(b, 3, -1))  # [B, 3, H*W]
         points = torch.bmm(pose[:, :3, :3], points).unsqueeze(2).repeat(
             1, 1, d, 1
-        ).clone() * depth.view(
+        ) * depth.view(
             b, 1, d, h * w
-        ).clone()  # [B, 3, D, H*W]
+        )  # [B, 3, D, H*W]
 
-        points = (points + pose[:, :3, -1:].unsqueeze(-1)).clone()  # [B, 3, D, H*W]
+        points = (points + pose[:, :3, -1:].unsqueeze(-1))  # [B, 3, D, H*W]
 
         # reproject to 2D image plane
         points = torch.bmm(intrinsics, points.view(b, 3, -1)).view(
             b, 3, d, h * w
-        ).clone()  # [B, 3, D, H*W]
+        )  # [B, 3, D, H*W]
 
-        # 确保所有操作都不是inplace操作
-        pixel_coords = (points[:, :2].clone() / points[:, -1:].clone().clamp(
+        pixel_coords = (points[:, :2] / points[:, -1:].clamp(
             min=clamp_min_depth
-        )).clone()  # [B, 2, D, H*W]
+        ))  # [B, 2, D, H*W]
 
-        # normalize to [-1, 1] - 确保所有操作都不是inplace操作
-        x_grid = (2 * pixel_coords[:, 0].clone() / (w - 1) - 1).clone()
-        y_grid = (2 * pixel_coords[:, 1].clone() / (h - 1) - 1).clone()
+        x_grid = (2 * pixel_coords[:, 0].clone() / (w - 1) - 1)
+        y_grid = (2 * pixel_coords[:, 1].clone() / (h - 1) - 1)
 
-        grid = torch.stack([x_grid, y_grid], dim=-1).clone()  # [B, D, H*W, 2]
+        grid = torch.stack([x_grid, y_grid], dim=-1)  # [B, D, H*W, 2]
 
     # sample features
-    # 确保feature1不被inplace修改，总是clone
-    feature1 = feature1.clone()
-
     warped_feature = F.grid_sample(
         feature1,
         grid.view(b, d * h, w, 2),
@@ -91,45 +84,41 @@ def warp_with_pose_depth_candidates(
     return warped_feature
 
 
-
 def prepare_feat_proj_data_lists(features, intrinsics, extrinsics, num_reference_views, idx):
     b, v, c, h, w = features.shape
     idx = idx[:, :, 1:]  # remove the current view
     if extrinsics is not None:
         # extract warp poses
-        # 确保所有操作都不是inplace操作
-        idx_to_warp = repeat(idx, "b v m -> b v m fw fh", fw=4, fh=4).clone()  # [b, v, m, 1, 1]
-        extrinsics_cur = repeat(extrinsics.clone().detach(), "b v fh fw -> b v m fh fw",
-                                m=num_reference_views).clone()  # [b, v, 4, 4]
-        poses_others = extrinsics_cur.gather(1, idx_to_warp).clone()  # [b, v, m, 4, 4]
-        poses_others_inv = torch.linalg.inv(poses_others).clone()  # [b, v, m, 4, 4]
-        poses_cur = extrinsics.clone().detach().unsqueeze(2).clone()  # [b, v, 1, 4, 4]
-        poses_warp = (poses_others_inv @ poses_cur).clone()  # [b, v, m, 4, 4]
-        poses_warp = rearrange(poses_warp, "b v m ... -> (b v) m ...").clone()  # [bxv, m, 4, 4]
+        idx_to_warp = repeat(idx, "b v m -> b v m fw fh", fw=4, fh=4)  # [b, v, m, 1, 1]
+        extrinsics_cur = repeat(extrinsics.detach(), "b v fh fw -> b v m fh fw",
+                                m=num_reference_views)  # [b, v, 4, 4]
+        poses_others = extrinsics_cur.gather(1, idx_to_warp)  # [b, v, m, 4, 4]
+        poses_others_inv = torch.linalg.inv(poses_others)  # [b, v, m, 4, 4]
+        poses_cur = extrinsics.detach().unsqueeze(2)  # [b, v, 1, 4, 4]
+        poses_warp = poses_others_inv @ poses_cur  # [b, v, m, 4, 4]
+        poses_warp = rearrange(poses_warp, "b v m ... -> (b v) m ...")  # [bxv, m, 4, 4]
     else:
         poses_warp = None
 
     if features is not None:
         # extract warp features
-        # 关键修改：确保所有操作都不是inplace操作
-        idx_to_warp = repeat(idx, "b v m -> b v m c h w", c=c, h=h, w=w).clone()  # [b, v, m, 1]
-        features_cur = repeat(features, "b v c h w -> b v m c h w", m=num_reference_views).clone()  # [b, v, m, c, h, w]
-        feat_warp = features_cur.gather(1, idx_to_warp).clone()  # [b, v, m, c, h, w]
-        feat_warp = rearrange(feat_warp, "b v m c h w -> (b v) m c h w").clone()  # [bxv, m, c, h, w]
+        idx_to_warp = repeat(idx, "b v m -> b v m c h w", c=c, h=h, w=w)  # [b, v, m, 1]
+        features_cur = repeat(features, "b v c h w -> b v m c h w", m=num_reference_views)  # [b, v, m, c, h, w]
+        feat_warp = features_cur.gather(1, idx_to_warp)  # [b, v, m, c, h, w]
+        feat_warp = rearrange(feat_warp, "b v m c h w -> (b v) m c h w")  # [bxv, m, c, h, w]
     else:
         feat_warp = None
 
     if intrinsics is not None:
         # extract warp intrinsics
-        # 关键修改：确保所有操作都不是inplace操作
-        intr_curr = intrinsics[:, :, :3, :3].clone().detach().clone()  # [b, v, 3, 3]
-        intr_curr = (intr_curr.clone() * 1).clone()  # 避免inplace乘法
-        intr_curr[:, :, 0, :] = (intr_curr[:, :, 0, :].clone() * float(w)).clone()
-        intr_curr[:, :, 1, :] = (intr_curr[:, :, 1, :].clone() * float(h)).clone()
-        idx_to_warp = repeat(idx, "b v m -> b v m fh fw", fh=3, fw=3).clone()  # [b, v, m, 1, 1]
-        intr_curr = repeat(intr_curr, "b v fh fw -> b v m fh fw", m=num_reference_views).clone()  # [b, v, m, 3, 3]
-        intr_warp = intr_curr.gather(1, idx_to_warp).clone()  # [b, v, m, 3, 3]
-        intr_warp = rearrange(intr_warp, "b v m ... -> (b v) m ...").clone()  # [bxv, m, 3, 3]
+        intr_curr = intrinsics[:, :, :3, :3].detach()  # [b, v, 3, 3]
+        intr_curr = intr_curr * 1  # 避免inplace乘法
+        intr_curr[:, :, 0, :] = intr_curr[:, :, 0, :] * float(w)
+        intr_curr[:, :, 1, :] = intr_curr[:, :, 1, :] * float(h)
+        idx_to_warp = repeat(idx, "b v m -> b v m fh fw", fh=3, fw=3)  # [b, v, m, 1, 1]
+        intr_curr = repeat(intr_curr, "b v fh fw -> b v m fh fw", m=num_reference_views)  # [b, v, m, 3, 3]
+        intr_warp = intr_curr.gather(1, idx_to_warp)  # [b, v, m, 3, 3]
+        intr_warp = rearrange(intr_warp, "b v m ... -> (b v) m ...")  # [bxv, m, 3, 3]
     else:
         intr_warp = None
 
@@ -379,12 +368,12 @@ class DepthPredictorMultiView(nn.Module):
         # print(f"[DepthPredictorMultiView]   far: {far.shape}")
         # print(f"[DepthPredictorMultiView]   gaussians_per_pixel: {gaussians_per_pixel}")
 
-        # 彻底克隆所有输入张量
-        images = images.clone()
-        intrinsics = intrinsics.clone()
-        extrinsics = extrinsics.clone()
-        near = near.clone()
-        far = far.clone()
+        # # 彻底克隆所有输入张量
+        # images = images.clone()
+        # intrinsics = intrinsics.clone()
+        # extrinsics = extrinsics.clone()
+        # near = near.clone()
+        # far = far.clone()
 
         num_reference_views = 1
         # find nearest idxs
@@ -427,7 +416,7 @@ class DepthPredictorMultiView(nn.Module):
         # print(f"[DepthPredictorMultiView] After decoders:")
         # print(f"[DepthPredictorMultiView]   features_mono shape: {features_mono.shape}")
         # print(f"[DepthPredictorMultiView]   disps_rel shape: {disps_rel.shape}")
-        # print(f"[DepthPredictorMultiView]   features_mv shape: {features_mv.shape}")
+        # print(f"[DepthPredictorMultiView]   features_mv shape: {featuzyres_mv.shape}")
 
         # 确保中间特征形状与DINOv2版本一致
         # DINOv2版本输出的是 [2, 64, 144, 144]，我们需要保持一致
@@ -450,8 +439,8 @@ class DepthPredictorMultiView(nn.Module):
         features_mv = features_mv.clone().detach().requires_grad_(
             True) if features_mv.requires_grad else features_mv.clone()
 
-        features_mv_upsampled = F.interpolate(features_mv, (64, 64), mode="bilinear", align_corners=True).clone()
-        features_mv_pos = mv_feature_add_position(features_mv_upsampled, 2, 64).clone()
+        features_mv_upsampled = F.interpolate(features_mv, (64, 64), mode="bilinear", align_corners=True)
+        features_mv_pos = mv_feature_add_position(features_mv_upsampled, 2, 64)
         features_mv_list = list(torch.unbind(rearrange(features_mv_pos, "(b v) c h w -> b v c h w", b=b, v=v), dim=1))
         # print(f"[DepthPredictorMultiView] After interpolation and position encoding:")
         # print(f"[DepthPredictorMultiView]   features_mv shape: {features_mv_pos.shape}")
@@ -462,25 +451,25 @@ class DepthPredictorMultiView(nn.Module):
         features_mv_list = self.transformer(
             features_mv_list,
             attn_num_splits=2,
-            nn_matrix=idx.clone(),
+            nn_matrix=idx,
         )
 
         # 关键修改：确保transformer输出也被隔离
         features_mv_transformed = rearrange(torch.stack(features_mv_list, dim=1), "b v c h w -> (b v) c h w")
-        features_mv_transformed = features_mv_transformed.clone().detach().requires_grad_(
-            True) if features_mv_transformed.requires_grad else features_mv_transformed.clone()
+        # features_mv_transformed = features_mv_transformed.clone().detach().requires_grad_(
+        #     True) if features_mv_transformed.requires_grad else features_mv_transformed.clone()
         # print(f"[DepthPredictorMultiView] After transformer:")
         # print(f"[DepthPredictorMultiView]   features_mv shape: {features_mv_transformed.shape}")
 
         # cost volume construction
-        features_mv_reshaped = rearrange(features_mv_transformed, "(b v) c h w -> b v c h w", v=v, b=b).clone()
+        features_mv_reshaped = rearrange(features_mv_transformed, "(b v) c h w -> b v c h w", v=v, b=b)
         features_mv_warped, intr_warped, poses_warped = (
             prepare_feat_proj_data_lists(
                 features_mv_reshaped,
                 intrinsics.clone(),
                 extrinsics.clone(),
                 num_reference_views=num_reference_views,
-                idx=idx.clone()
+                idx=idx
             )
         )
         # print(f"[DepthPredictorMultiView] After prepare_feat_proj_data_lists:")
@@ -491,18 +480,14 @@ class DepthPredictorMultiView(nn.Module):
         # print(
         #     f"[DepthPredictorMultiView]   poses_warped shape: {poses_warped.shape if poses_warped is not None else None}")
 
-        # 关键修改：构建视差候选
-        far_clone = far.clone()
-        near_clone = near.clone()
-        min_disp = rearrange(1.0 / far_clone.detach(), "b v -> (b v) ()").clone()
-        max_disp = rearrange(1.0 / near_clone.detach(), "b v -> (b v) ()").clone()
-        disp_range_norm = torch.linspace(0.0, 1.0, self.num_depth_candidates, device=min_disp.device).clone()
-        disp_candi_curr = (min_disp.unsqueeze(-1).unsqueeze(-1) +
-                           disp_range_norm.unsqueeze(0).unsqueeze(-1).unsqueeze(-1) *
-                           (max_disp.unsqueeze(-1).unsqueeze(-1) - min_disp.unsqueeze(-1).unsqueeze(-1))).type_as(
+        # 构建视差候选
+        min_disp = rearrange(1.0 / far.detach(), "b v -> (b v) ()")
+        max_disp = rearrange(1.0 / near.detach(), "b v -> (b v) ()")
+        disp_range_norm = torch.linspace(0.0, 1.0, self.num_depth_candidates, device=min_disp.device)
+        disp_candi_curr = (min_disp + disp_range_norm.unsqueeze(0) * (max_disp - min_disp)).type_as(
             features_mv_transformed)
-        disp_candi_curr = disp_candi_curr.clone()
-        # print(f"[DepthPredictorMultiView] Disparity candidates shape: {disp_candi_curr.shape}")
+        disp_candi_curr = repeat(disp_candi_curr, "bv d -> bv d fh fw", fh=features_mv_transformed.shape[-2],
+                                 fw=features_mv_transformed.shape[-1])  # [bxv, d, 1, 1]
 
         raw_correlation_in = []
         for i in range(num_reference_views):
@@ -526,44 +511,44 @@ class DepthPredictorMultiView(nn.Module):
         # print(f"[DepthPredictorMultiView] Mean correlation shape: {raw_correlation_in.shape}")
 
         # refine cost volume and get depths
-        features_mono_tmp = F.interpolate(features_mono, (64, 64), mode="bilinear", align_corners=True).clone()
+        features_mono_tmp = F.interpolate(features_mono, (64, 64), mode="bilinear", align_corners=True)
         raw_correlation_in_combined = torch.cat((
-            raw_correlation_in.clone(),
-            features_mv_transformed.clone(),
-            features_mono_tmp.clone()
-        ), dim=1).clone()
+            raw_correlation_in,
+            features_mv_transformed,
+            features_mono_tmp
+        ), dim=1)
         # print(f"[DepthPredictorMultiView] Before cost volume refinement:")
         # print(f"[DepthPredictorMultiView]   raw_correlation_in shape: {raw_correlation_in.shape}")
 
-        raw_correlation = self.corr_refine_net(raw_correlation_in_combined).clone()
-        raw_correlation_residual = self.regressor_residual(raw_correlation_in_combined.clone()).clone()
-        raw_correlation = (raw_correlation + raw_correlation_residual).clone()
+        raw_correlation = self.corr_refine_net(raw_correlation_in_combined)
+        raw_correlation_residual = self.regressor_residual(raw_correlation_in_combined)
+        raw_correlation = raw_correlation + raw_correlation_residual
         # print(f"[DepthPredictorMultiView] After cost volume refinement:")
         # print(f"[DepthPredictorMultiView]   raw_correlation shape: {raw_correlation.shape}")
 
-        pdf = F.softmax(self.depth_head_lowres(raw_correlation.clone()), dim=1).clone()
-        disps_metric = torch.sum(disp_candi_curr * pdf, dim=1, keepdim=True).clone()
-        pdf_max = torch.max(pdf, dim=1, keepdim=True)[0].clone()
-        pdf_max = F.interpolate(pdf_max, (ori_h, ori_w), mode="bilinear", align_corners=True).clone()
-        disps_metric_fullres = F.interpolate(disps_metric, (ori_h, ori_w), mode="bilinear", align_corners=True).clone()
+        pdf = F.softmax(self.depth_head_lowres(raw_correlation), dim=1)
+        disps_metric = (disp_candi_curr * pdf).sum(dim=1, keepdim=True)
+        pdf_max = torch.max(pdf, dim=1, keepdim=True)[0]
+        pdf_max = F.interpolate(pdf_max, (ori_h, ori_w), mode="bilinear", align_corners=True)
+        disps_metric_fullres = F.interpolate(disps_metric, (ori_h, ori_w), mode="bilinear", align_corners=True)
         # print(f"[DepthPredictorMultiView] After depth estimation:")
         # print(f"[DepthPredictorMultiView]   pdf shape: {pdf.shape}")
         # print(f"[DepthPredictorMultiView]   disps_metric shape: {disps_metric.shape}")
         # print(f"[DepthPredictorMultiView]   pdf_max shape: {pdf_max.shape}")
         # print(f"[DepthPredictorMultiView]   disps_metric_fullres shape: {disps_metric_fullres.shape}")
 
-        # feature refinement - 关键修改：避免任何就地操作
+        # feature refinement
         features_mv_in_fullres = F.interpolate(features_mv_transformed, (ori_h, ori_w), mode="bilinear",
-                                               align_corners=True).clone()
-        features_mv_in_fullres = self.proj_feature_mv(features_mv_in_fullres.clone()).clone()
+                                               align_corners=True)
+        features_mv_in_fullres = self.proj_feature_mv(features_mv_in_fullres)
 
         features_mono_in_fullres = F.interpolate(features_mono, (ori_h, ori_w), mode="bilinear",
-                                                 align_corners=True).clone()
-        features_mono_in_fullres = self.proj_feature_mono(features_mono_in_fullres.clone()).clone()
+                                                 align_corners=True)
+        features_mono_in_fullres = self.proj_feature_mono(features_mono_in_fullres)
 
-        disps_rel_fullres = F.interpolate(disps_rel, (ori_h, ori_w), mode="bilinear", align_corners=True).clone()
+        disps_rel_fullres = F.interpolate(disps_rel, (ori_h, ori_w), mode="bilinear", align_corners=True)
 
-        images_reorder = rearrange(images, "b v c h w -> (b v) c h w").clone()
+        images_reorder = rearrange(images, "b v c h w -> (b v) c h w")
 
         # print(f"[DepthPredictorMultiView] After feature interpolation:")
         # print(f"[DepthPredictorMultiView]   features_mv_in_fullres shape: {features_mv_in_fullres.shape}")
@@ -571,29 +556,29 @@ class DepthPredictorMultiView(nn.Module):
         # print(f"[DepthPredictorMultiView]   disps_rel_fullres shape: {disps_rel_fullres.shape}")
         # print(f"[DepthPredictorMultiView] images_reorder shape: {images_reorder.shape}")
 
-        # 关键修改：构建UNet输入
+        # 构建UNet输入
         unet_input = torch.cat([
-            features_mv_in_fullres.clone(),
-            features_mono_in_fullres.clone(),
-            images_reorder.clone(),
-            disps_metric_fullres.clone(),
-            disps_rel_fullres.clone(),
-            pdf_max.clone()
-        ], dim=1).clone()
+            features_mv_in_fullres,
+            features_mono_in_fullres,
+            images_reorder,
+            disps_metric_fullres,
+            disps_rel_fullres,
+            pdf_max
+        ], dim=1)
 
-        refine_out = self.refine_unet(unet_input).clone()
+        refine_out = self.refine_unet(unet_input)
 
         # print(f"[DepthPredictorMultiView] After refinement UNet:")
         # print(f"[DepthPredictorMultiView]   refine_out shape: {refine_out.shape}")
 
         # gaussians head
         gaussians_input = torch.cat([
-            refine_out.clone(),
-            features_mv_in_fullres.clone(),
-            features_mono_in_fullres.clone(),
-            images_reorder.clone()
-        ], dim=1).clone()
-        raw_gaussians = self.to_gaussians(gaussians_input).clone()
+            refine_out,
+            features_mv_in_fullres,
+            features_mono_in_fullres,
+            images_reorder
+        ], dim=1)
+        raw_gaussians = self.to_gaussians(gaussians_input)
 
         # print(f"[DepthPredictorMultiView] Gaussians prediction:")
         # print(f"[DepthPredictorMultiView]   raw_gaussians_in shape: {gaussians_input.shape}")
@@ -601,12 +586,12 @@ class DepthPredictorMultiView(nn.Module):
 
         # delta fine depth and density
         disparity_input = torch.cat([
-            refine_out.clone(),
-            disps_metric_fullres.clone(),
-            disps_rel_fullres.clone(),
-            pdf_max.clone()
-        ], dim=1).clone()
-        delta_disps_density = self.to_disparity(disparity_input).clone()
+            refine_out,
+            disps_metric_fullres,
+            disps_rel_fullres,
+            pdf_max
+        ], dim=1)
+        delta_disps_density = self.to_disparity(disparity_input)
         delta_disps, raw_densities = delta_disps_density.split(gaussians_per_pixel, dim=1)
 
         # print(f"[DepthPredictorMultiView] Disparity and density prediction:")
@@ -615,30 +600,33 @@ class DepthPredictorMultiView(nn.Module):
         # print(f"[DepthPredictorMultiView]   delta_disps shape: {delta_disps.shape}")
         # print(f"[DepthPredictorMultiView]   raw_densities shape: {raw_densities.shape}")
 
-        # outputs - 关键修改：完全避免就地操作
-        far_rearranged = rearrange(far, "b v -> (b v) () () ()").clone()
-        near_rearranged = rearrange(near, "b v -> (b v) () () ()").clone()
+        # outputs
+        far_rearranged = rearrange(far, "b v -> (b v) () () ()")
+        near_rearranged = rearrange(near, "b v -> (b v) () () ()")
 
-        # 使用torch.clamp而不是.clamp()方法
-        fine_disps = torch.clamp(
-            disps_metric_fullres.clone() + delta_disps.clone(),
-            1.0 / far_rearranged.clone(),
-            1.0 / near_rearranged.clone()
-        ).clone()
+        fine_disps = (disps_metric_fullres + delta_disps).clamp(
+            1.0 / far_rearranged,
+            1.0 / near_rearranged,
+        )
 
-        # 使用torch.div而不是除法操作符
-        depths = torch.div(1.0, fine_disps.clone())
-        depths = repeat(depths, "(b v) dpt h w -> b v (h w) srf dpt", b=b, v=v, srf=1).clone()
-
-        densities = repeat(
-            torch.sigmoid(raw_densities.clone()),
+        depths = 1.0 / fine_disps
+        depths = repeat(
+            depths,
             "(b v) dpt h w -> b v (h w) srf dpt",
             b=b,
             v=v,
             srf=1,
-        ).clone()
+        )
 
-        raw_gaussians = rearrange(raw_gaussians, "(b v) c h w -> b v (h w) c", v=v, b=b).clone()
+        densities = repeat(
+            F.sigmoid(raw_densities),
+            "(b v) dpt h w -> b v (h w) srf dpt",
+            b=b,
+            v=v,
+            srf=1,
+        )
+
+        raw_gaussians = rearrange(raw_gaussians, "(b v) c h w -> b v (h w) c", v=v, b=b)
 
         # print(f"[DepthPredictorMultiView] Final outputs:")
         # print(f"[DepthPredictorMultiView]   fine_disps shape: {fine_disps.shape}")

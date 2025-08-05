@@ -1,3 +1,4 @@
+# file: D:\PycharmProject\MonoSplat\src\model\decoder\cuda_splatting.py
 from math import isqrt
 from typing import Literal
 
@@ -87,7 +88,6 @@ def render_cuda(
     full_projection = view_matrix @ projection_matrix
 
     all_images = []
-    all_radii = []
     for i in range(b):
         # Set up a tensor for the gradients of the screen-space means.
         mean_gradients = torch.zeros_like(gaussian_means[i], requires_grad=True)
@@ -126,14 +126,14 @@ def render_cuda(
 
         # 根据实际返回值调整
         if isinstance(rasterizer_result, tuple) and len(rasterizer_result) == 5:
-            image, _, _, _, radii = rasterizer_result
+            image, _, _, _, _ = rasterizer_result
         elif isinstance(rasterizer_result, tuple) and len(rasterizer_result) == 2:
-            image, radii = rasterizer_result
+            image, _ = rasterizer_result
         else:
             raise ValueError(f"Unexpected rasterizer output: {rasterizer_result}")
 
         all_images.append(image)
-        all_radii.append(radii)
+
     return torch.stack(all_images)
 
 
@@ -190,7 +190,6 @@ def render_cuda_orthographic(
     full_projection = view_matrix @ projection_matrix
 
     all_images = []
-    all_radii = []
     for i in range(b):
         # Set up a tensor for the gradients of the screen-space means.
         mean_gradients = torch.zeros_like(gaussian_means[i], requires_grad=True)
@@ -217,7 +216,7 @@ def render_cuda_orthographic(
 
         row, col = torch.triu_indices(3, 3)
 
-        image, _, _, _, radii = rasterizer(
+        image, _, _, _, _ = rasterizer(
             means3D=gaussian_means[i],
             means2D=mean_gradients,
             shs=shs[i] if use_sh else None,
@@ -225,8 +224,9 @@ def render_cuda_orthographic(
             opacities=gaussian_opacities[i, ..., None],
             cov3D_precomp=gaussian_covariances[i, :, row, col],
         )
+
         all_images.append(image)
-        all_radii.append(radii)
+
     return torch.stack(all_images)
 
 

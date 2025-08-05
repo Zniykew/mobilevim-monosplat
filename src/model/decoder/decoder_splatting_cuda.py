@@ -1,3 +1,4 @@
+# file: D:\PycharmProject\MonoSplat\src\model\decoder\decoder_splatting_cuda.py
 from dataclasses import dataclass
 from typing import Literal
 
@@ -43,6 +44,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         depth_mode: DepthRenderingMode | None = None,
     ) -> DecoderOutput:
         b, v, _, _ = extrinsics.shape
+
         color = render_cuda(
             rearrange(extrinsics, "b v i j -> (b v) i j"),
             rearrange(intrinsics, "b v i j -> (b v) i j"),
@@ -57,14 +59,13 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         )
         color = rearrange(color, "(b v) c h w -> b v c h w", b=b, v=v)
 
-        return DecoderOutput(
-            color,
-            None
-            if depth_mode is None
-            else self.render_depth(
+        depth = None
+        if depth_mode is not None:
+            depth = self.render_depth(
                 gaussians, extrinsics, intrinsics, near, far, image_shape, depth_mode
-            ),
-        )
+            )
+
+        return DecoderOutput(color, depth)
 
     def render_depth(
         self,
@@ -77,6 +78,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
         mode: DepthRenderingMode = "depth",
     ) -> Float[Tensor, "batch view height width"]:
         b, v, _, _ = extrinsics.shape
+
         result = render_depth_cuda(
             rearrange(extrinsics, "b v i j -> (b v) i j"),
             rearrange(intrinsics, "b v i j -> (b v) i j"),
@@ -88,4 +90,7 @@ class DecoderSplattingCUDA(Decoder[DecoderSplattingCUDACfg]):
             repeat(gaussians.opacities, "b g -> (b v) g", v=v),
             mode=mode,
         )
-        return rearrange(result, "(b v) h w -> b v h w", b=b, v=v)
+
+        result = rearrange(result, "(b v) h w -> b v h w", b=b, v=v)
+
+        return result
