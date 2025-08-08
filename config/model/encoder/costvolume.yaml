@@ -40,7 +40,7 @@ mono_depth_encoder_type: "mobilevim_xxs"
 mono_depth_encoder_kwargs:
   model_type: "xx_small"
   feature_channels: 64
-  freeze_backbone: True
+  freeze_backbone: False
 
 # below are ablation settings, keep them as false for default model
 wo_depth_refine: false         # Table 3: base

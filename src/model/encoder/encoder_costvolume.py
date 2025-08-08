@@ -116,8 +116,6 @@ class EncoderCostVolume(Encoder[EncoderCostVolumeCfg]):
         device = context["image"].device
         b, v, _, h, w = context["image"].shape
 
-        # print(f"[EncoderCostVolume] Input image shape: {context['image'].shape}")  # [B, V, 3, H, W]
-
         # Sample depths from the resulting features.
         gpp = self.cfg.gaussians_per_pixel
 
@@ -133,11 +131,6 @@ class EncoderCostVolume(Encoder[EncoderCostVolumeCfg]):
             deterministic=deterministic,
         )
 
-        # # 添加调试信息
-        # print(f"[EncoderCostVolume] Depths shape: {depths.shape}")
-        # print(f"[EncoderCostVolume] Densities shape: {densities.shape}")
-        # print(f"[EncoderCostVolume] Raw gaussians shape: {raw_gaussians.shape}")
-
         # Convert the features and depths into Gaussians.
         xy_ray, _ = sample_image_grid((h, w), device)
         xy_ray = rearrange(xy_ray, "h w xy -> (h w) () xy")
@@ -150,50 +143,33 @@ class EncoderCostVolume(Encoder[EncoderCostVolumeCfg]):
             srf=self.cfg.num_surfaces,
         )
 
-        # print(f"[EncoderCostVolume] Gaussians after rearrange shape: {gaussians.shape}")
-
         offset_xy = gaussians[..., :2].sigmoid()
         pixel_size = 1 / torch.tensor((w, h), dtype=torch.float32, device=device)
-        xy_ray_copy = xy_ray.clone()  # 克隆避免inplace修改
-        xy_ray_updated = xy_ray_copy + (offset_xy - 0.5) * pixel_size
+        xy_ray_updated = xy_ray + (offset_xy - 0.5) * pixel_size
 
         gpp = self.cfg.gaussians_per_pixel
 
-        # print(f"[EncoderCostVolume] Before gaussian_adapter:")
-        # print(f"  extrinsics shape: {rearrange(context['extrinsics'], 'b v i j -> b v () () () i j').shape}")
-        # print(f"  intrinsics shape: {rearrange(context['intrinsics'], 'b v i j -> b v () () () i j').shape}")
-        # print(f"  xy_ray shape: {rearrange(xy_ray, 'b v r srf xy -> b v r srf () xy').shape}")
-        # print(f"  depths shape: {depths.shape}")
-        # print(f"  densities shape: {densities.shape}")
-        # print(f"  gaussians features shape: {rearrange(gaussians[..., 2:], 'b v r srf c -> b v r srf () c').shape}")
-
         # 确保所有张量在传递给gaussian_adapter之前都是独立的
-        extrinsics_copy = rearrange(context["extrinsics"], "b v i j -> b v () () () i j").clone()
-        intrinsics_copy = rearrange(context["intrinsics"], "b v i j -> b v () () () i j").clone()
-        xy_ray_final = rearrange(xy_ray_updated, "b v r srf xy -> b v r srf () xy").clone()
-        depths_copy = depths.clone()
-        densities_copy = densities.clone()
-        gaussians_features = rearrange(gaussians[..., 2:], "b v r srf c -> b v r srf () c").clone()
+        extrinsics = rearrange(context["extrinsics"], "b v i j -> b v () () () i j")
+        intrinsics = rearrange(context["intrinsics"], "b v i j -> b v () () () i j")
+        xy_ray_final = rearrange(xy_ray_updated, "b v r srf xy -> b v r srf () xy")
+        depths_copy = depths
+        densities_copy = densities
+        gaussians_features = rearrange(gaussians[..., 2:], "b v r srf c -> b v r srf () c")
 
         # 在map_pdf_to_opacity中也避免inplace操作
-        opacity_pdf = self.map_pdf_to_opacity(densities_copy, global_step).clone()
+        opacity_pdf = self.map_pdf_to_opacity(densities_copy, global_step)
         opacity_values = opacity_pdf / gpp
 
         gaussians = self.gaussian_adapter.forward(
-            extrinsics_copy,
-            intrinsics_copy,
+            extrinsics,
+            intrinsics,
             xy_ray_final,
             depths_copy,
             opacity_values,
             gaussians_features,
             (h, w),
         )
-
-        # print(f"[EncoderCostVolume] After gaussian_adapter:")
-        # print(f"  gaussians.means shape: {gaussians.means.shape}")
-        # print(f"  gaussians.covariances shape: {gaussians.covariances.shape}")
-        # print(f"  gaussians.harmonics shape: {gaussians.harmonics.shape}")
-        # print(f"  gaussians.opacities shape: {gaussians.opacities.shape}")
 
         # Dump visualizations if needed.
         if visualization_dump is not None:
@@ -228,12 +204,6 @@ class EncoderCostVolume(Encoder[EncoderCostVolumeCfg]):
                 "b v r srf spp -> b (v r srf spp)",
             ),
         )
-
-        # print(f"[EncoderCostVolume] Final output shapes:")
-        # print(f"  means: {result.means.shape}")
-        # print(f"  covariances: {result.covariances.shape}")
-        # print(f"  harmonics: {result.harmonics.shape}")
-        # print(f"  opacities: {result.opacities.shape}")
 
         return result
 

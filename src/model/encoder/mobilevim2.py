@@ -362,7 +362,12 @@ class MBWTConv2d(nn.Module):
         if self.do_stride is not None:
             x = self.do_stride(x)  # 执行步长下采样
 
-        return x
+        # 在返回前添加显式清理
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # 确保返回的张量不保留计算图
+        return x.clone().detach()
 
 
 class _ScaleModule(nn.Module):
@@ -1051,27 +1056,15 @@ class MobileViM(torch.nn.Module):
         for stage in self.stages:
             for block in stage:
                 x = block(x)
-            enc_features.append(x)
+            # 克隆特征以断开计算图连接，避免保留整个计算历史
+            enc_features.append(x.clone().detach())
 
-        # # 反转特征顺序
-        # enc_features = enc_features
-        #
-        # # 多尺度解码
-        # fpn_outputs, decoder_outputs = self.pixel_decoder(enc_features)
-        #
-        # # 特征金字塔处理
-        # idrs = self.afp(decoder_outputs[:3])
-        # multi_scale_features = self.isd(fpn_outputs[:3], idrs)
-        #
-        # # 多分辨率融合
-        # target_size = max([f.shape[-2:] for f in multi_scale_features], key=lambda x: x[0])
-        # fused_features = 0
-        # for feat in multi_scale_features:
-        #     resized_feat = F.interpolate(feat, size=target_size, mode='bilinear', align_corners=False)
-        #     fused_features += resized_feat
-        # fused_features /= len(multi_scale_features)
-        #
-        # return fused_features  # [B, decoder_hidden_dim, H, W]
+            # 显式删除中间变量
+            del x
+
+        # 显式清理不需要的变量
+        if 'x' in locals():
+            del x
 
         return enc_features
 

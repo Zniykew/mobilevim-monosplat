@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="root@172.16.78.10:32297 password (35)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="root@172.16.78.10:32297 password (45)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
+      <paths name="root@172.16.78.10:30206 password">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="root@172.16.78.10:32297 password">
         <serverdata>
           <mappings>
@@ -184,6 +191,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="root@172.16.78.10:32297 password (33)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="root@172.16.78.10:32297 password (34)">
         <serverdata>
           <mappings>
@@ -198,7 +212,77 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="root@172.16.78.10:32297 password (36)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (37)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (38)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (39)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="root@172.16.78.10:32297 password (4)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (40)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (41)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (42)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (43)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (44)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="root@172.16.78.10:32297 password (45)">
         <serverdata>
           <mappings>
             <mapping deploy="/zhangyanwei/MonoSplat" local="$PROJECT_DIR$" />
