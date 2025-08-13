@@ -1,6 +1,16 @@
 <p align="center">
-  <h1 align="center">MonoSplat: Generalizable 3D Gaussian Splatting from Monocular Depth Foundation Models</h1>
+  <h1 align="center">MobileVim-MonoSplat</h1>
 
+
+## Modifications to Original MonoSplat
+
+This repository is a modified version of the original MonoSplat project with the following key changes:
+
+1. **Backbone Replacement**: The original DINOv2 backbone has been replaced with MobileViM, a lightweight vision model.
+2. **Architecture Preservation**: All components except the encoder remain unchanged from the original design.
+3. **Research Goal**: This modification aims to verify two key capabilities of MobileViM:
+   - Lightweight nature compared to heavier backbones
+   - Ability to maintain competitive accuracy while being more computationally efficient
 
 ## Installation
 
