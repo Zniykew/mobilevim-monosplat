@@ -37,13 +37,13 @@ data_loader:
 
 optimizer:
   lr: 2.e-4
-  warm_up_steps: 2000
+  warm_up_steps: 1000
   cosine_lr: true
 
 checkpointing:
   load: null
-  every_n_train_steps: 20000  # 5000
-  save_top_k: -1
+  every_n_train_steps: 500
+  save_top_k: 5
   pretrained_model: null
   pretrained_monodepth: null
   resume: true
@@ -63,7 +63,7 @@ test:
 seed: 111123
 
 trainer:
-  max_steps: -1
+  max_steps: 20000
   val_check_interval: 0.5
   gradient_clip_val: 0.5
   num_sanity_val_steps: 2

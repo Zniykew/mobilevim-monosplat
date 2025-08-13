@@ -7,9 +7,6 @@ import os
 def main():
     # 设置环境变量以优化内存使用
     env = os.environ.copy()
-    env['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:32'
-    env['HYDRA_FULL_ERROR'] = '1'  # 启用完整错误追踪
-    env['CUDA_LAUNCH_BLOCKING'] = '1'  # 启用CUDA调试模式
 
     # 设置wandb API密钥
     env['WANDB_API_KEY'] = '73f6d2ab7d90d2ab9f213d25dc1af0821a5074ed'
@@ -18,8 +15,7 @@ def main():
     cmd = [
         'conda', 'run', '-n', 'MonoSplat', 'python', '-m', 'src.main',
         '+experiment=re10k',
-        'data_loader.train.batch_size=4',
-        '+model.decoder.max_gaussian_points=16384',
+        'data_loader.train.batch_size=14',
         'wandb.mode=disabled'
     ]
 

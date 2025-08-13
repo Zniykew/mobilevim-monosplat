@@ -1,4 +1,4 @@
-# file: D:\PycharmProject\MonoSplat\src\model\decoder\cuda_splatting.py
+
 from math import isqrt
 from typing import Literal
 
@@ -64,7 +64,6 @@ def render_cuda(
     # Make sure everything is in a range where numerical issues don't appear.
     if scale_invariant:
         scale = 1 / near
-        extrinsics = extrinsics.clone()
         extrinsics[..., :3, 3] = extrinsics[..., :3, 3] * scale[:, None]
         gaussian_covariances = gaussian_covariances * (scale[:, None, None, None] ** 2)
         gaussian_means = gaussian_means * scale[:, None, None]

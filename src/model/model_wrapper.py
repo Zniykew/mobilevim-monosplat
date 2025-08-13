@@ -5,6 +5,7 @@ from typing import Optional, Protocol, runtime_checkable
 import moviepy.editor as mpy
 import torch
 import wandb
+import gc
 from einops import pack, rearrange, repeat
 from jaxtyping import Float
 from pytorch_lightning import LightningModule
@@ -20,6 +21,7 @@ from ..dataset import DatasetCfg
 from ..evaluation.metrics import compute_lpips, compute_psnr, compute_ssim
 from ..global_cfg import get_cfg
 from ..loss import Loss
+from ..misc.memory_utils import check_memory_usage
 from ..misc.benchmarker import Benchmarker
 from ..misc.image_io import prep_image, save_image, save_video
 from ..misc.LocalLogger import LOG_PATH, LocalLogger
@@ -120,7 +122,12 @@ class ModelWrapper(LightningModule):
             self.test_step_outputs = {}
             self.time_skip_steps_dict = {"encoder": 0, "decoder": 0}
 
+
+        # file: src/model/model_wrapper.py
     def training_step(self, batch, batch_idx):
+        if batch_idx % 5 == 0:  # 每10步检查一次以减少输出
+            check_memory_usage(f"Train step {self.global_step}")
+
         batch: BatchedExample = self.data_shim(batch)
         _, _, _, h, w = batch["target"]["image"].shape
 
@@ -129,11 +136,10 @@ class ModelWrapper(LightningModule):
             batch["context"], self.global_step, False, scene_names=batch["scene"]
         )
 
-        # 克隆关键输入张量以避免inplace操作
-        target_extrinsics = batch["target"]["extrinsics"].clone()
-        target_intrinsics = batch["target"]["intrinsics"].clone()
-        target_near = batch["target"]["near"].clone()
-        target_far = batch["target"]["far"].clone()
+        target_extrinsics = batch["target"]["extrinsics"]
+        target_intrinsics = batch["target"]["intrinsics"]
+        target_near = batch["target"]["near"]
+        target_far = batch["target"]["far"]
 
         output = self.decoder.forward(
             gaussians,
@@ -159,11 +165,12 @@ class ModelWrapper(LightningModule):
             loss = loss_fn.forward(output, batch, gaussians, self.global_step)
             self.log(f"loss/{loss_fn.name}", loss)
             total_loss = total_loss + loss
+
         self.log("loss/total", total_loss)
 
         if (
-            self.global_rank == 0
-            and self.global_step % self.train_cfg.print_log_every_n_steps == 0
+                self.global_rank == 0
+                and self.global_step % self.train_cfg.print_log_every_n_steps == 0
         ):
             print(
                 f"train step {self.global_step}; "
@@ -175,13 +182,21 @@ class ModelWrapper(LightningModule):
             )
         self.log("info/near", batch["context"]["near"].detach().cpu().numpy().mean())
         self.log("info/far", batch["context"]["far"].detach().cpu().numpy().mean())
-        self.log("info/global_step", self.global_step)  # hack for ckpt monitor
+        self.log("info/global_step", self.global_step)
 
         # Tell the data loader processes about the current step.
         if self.step_tracker is not None:
             self.step_tracker.set_step(self.global_step)
 
+        # 必要的清理
+        del batch, gaussians, output, target_gt, psnr_probabilistic
+        # 减少清理频率
+        if self.global_step % 10 == 0:  # 降低清理频率
+            torch.cuda.empty_cache()
+
         return total_loss
+
+
 
     def test_step(self, batch, batch_idx):
         batch: BatchedExample = self.data_shim(batch)

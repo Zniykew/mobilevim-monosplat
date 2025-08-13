@@ -51,6 +51,8 @@ def check_memory_usage(stage=""):
     config_name="main",
 )
 def train(cfg_dict: DictConfig):
+    torch.autograd.set_detect_anomaly(True)
+
     cfg = load_typed_root_config(cfg_dict)
     set_cfg(cfg_dict)
 
@@ -208,6 +210,7 @@ if __name__ == "__main__":
 
     # 设置环境变量以获得更详细的错误信息
     os.environ['HYDRA_FULL_ERROR'] = '1'
+    # os.environ['PYTORCH_NO_CUDA_MEMORY_CACHING'] = '1'
 
     wandb_api_key = os.environ.get("WANDB_API_KEY")
     if wandb_api_key:
