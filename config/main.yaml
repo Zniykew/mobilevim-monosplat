@@ -64,6 +64,7 @@ seed: 111123
 
 trainer:
   max_steps: 20000
+  max_steps: 20000
   val_check_interval: 0.5
   gradient_clip_val: 0.5
   num_sanity_val_steps: 2
